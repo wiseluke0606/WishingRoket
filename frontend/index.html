@@ -218,7 +218,7 @@
         <div class="p-3.5 bg-purple-500/10 border border-purple-500/20 rounded-xl flex items-start space-x-2.5">
           <i data-lucide="info" class="w-5 h-5 text-purple-400 shrink-0 mt-0.5"></i>
           <p class="text-xs text-purple-300/90 leading-relaxed font-medium">
-            현재 Supabase 서버 연결 정보가 설정되어 있지 않아 <strong>로컬 데모 모드</strong>로 작동 중입니다. URL과 Anon Key만 입력하여 저장하시면 즉시 실시간 서버 연동 모드로 전환됩니다. (CLI 백엔드 배포는 필요 없습니다!)
+            GitHub Secrets로 환경변수를 등록하여 빌드하셨다면 서버에 자동 연결되어 있습니다. 개별 수동 설정을 원하시면 위 입력칸을 작성해 주세요.
           </p>
         </div>
       </div>
@@ -246,8 +246,9 @@
       mode: "local", // "local" 또는 "supabase"
       supabaseClient: null,
       config: {
-        supabaseUrl: "",
-        supabaseAnonKey: ""
+        // GitHub Actions 빌드 시점에 Secrets에서 가져온 값으로 치환될 임시 플레이스홀더
+        supabaseUrl: "__SUPABASE_URL__",
+        supabaseAnonKey: "__SUPABASE_ANON_KEY__"
       },
       activeCard: null,
       isDragging: false,
@@ -287,17 +288,35 @@
       }
     }
 
-    // 2. LocalStorage 기반 설정 입출력 함수
+    // 2. LocalStorage 기반 설정 입출력 및 GitHub Actions 환경변수 인식 함수
     function loadConfig() {
+      // 1) 만약 빌드 시점에 GitHub Actions 환경변수가 주입(치환)되었다면, 우선하여 서버 연동 모드로 진입합니다.
+      const hasBuildSecrets = 
+        state.config.supabaseUrl && 
+        state.config.supabaseUrl !== "__SUPABASE_URL__" && 
+        state.config.supabaseUrl.trim() !== "" &&
+        state.config.supabaseAnonKey && 
+        state.config.supabaseAnonKey !== "__SUPABASE_ANON_KEY__" && 
+        state.config.supabaseAnonKey.trim() !== "";
+
+      if (hasBuildSecrets) {
+        state.mode = "supabase";
+        updateModeBadge();
+        return;
+      }
+
+      // 2) 빌드 시점 주입이 없었을 경우, LocalStorage에 저장된 수동 설정 정보가 있는지 읽어옵니다.
       const saved = localStorage.getItem("wishing_rocket_config");
       if (saved) {
         try {
-          state.config = JSON.parse(saved);
-          document.getElementById("sbUrl").value = state.config.supabaseUrl || "";
-          document.getElementById("sbAnonKey").value = state.config.supabaseAnonKey || "";
-          
-          if (state.config.supabaseUrl && state.config.supabaseAnonKey) {
+          const parsed = JSON.parse(saved);
+          if (parsed.supabaseUrl && parsed.supabaseAnonKey) {
+            state.config.supabaseUrl = parsed.supabaseUrl;
+            state.config.supabaseAnonKey = parsed.supabaseAnonKey;
             state.mode = "supabase";
+            
+            document.getElementById("sbUrl").value = parsed.supabaseUrl;
+            document.getElementById("sbAnonKey").value = parsed.supabaseAnonKey;
           }
         } catch (e) {
           console.error("저장된 설정을 파싱하는 중 오류가 발생했습니다.", e);

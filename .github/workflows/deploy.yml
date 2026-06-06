@@ -1,0 +1,37 @@
+# 소망 로켓 (Wishing Rocket) GitHub Pages 자동 배포 워크플로우
+# 이 워크플로우는 main 브랜치에 푸시가 발생할 때 자동으로 작동합니다.
+
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches:
+      - main # main 브랜치에 변경사항이 푸시되면 실행
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 원격 리포지토리의 소스 코드를 가져옵니다.
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      # 2. GitHub Secrets에 저장된 수파베이스 환경 변수들을 프론트엔드 코드에 주입합니다.
+      # index.html 내부에 기재된 플레이스홀더(__SUPABASE_URL__, __SUPABASE_ANON_KEY__)를 실제 값으로 문자열 치환(sed)합니다.
+      - name: Replace Placeholders with Secrets
+        run: |
+          # 플레이스홀더 치환 실행
+          # 깃허브 시크릿에 등록된 값이 빈 값일 수 있으므로 이를 안전하게 처리합니다.
+          sed -i "s|__SUPABASE_URL__|${{ secrets.SUPABASE_URL }}|g" frontend/index.html
+          sed -i "s|__SUPABASE_ANON_KEY__|${{ secrets.SUPABASE_ANON_KEY }}|g" frontend/index.html
+          
+          echo "정적 파일 환경 변수 치환 작업이 완료되었습니다."
+
+      # 3. 환경 변수가 주입된 소스 코드를 gh-pages 브랜치에 커밋하여 푸시합니다.
+      # 이 액션은 리포지토리의 GITHUB_TOKEN을 사용하여 gh-pages 브랜치를 생성하고 자동으로 배포본을 밀어 올립니다.
+      - name: Deploy to GitHub Pages Branch
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: .       # 프로젝트 전체 디렉터리를 배포 (루트 index.html이 리다이렉션을 처리함)
+          publish_branch: gh-pages # 배포용 브랜치 지정
