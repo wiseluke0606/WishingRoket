@@ -7,7 +7,7 @@
   
   <!-- SEO 메타 태그 -->
   <meta name="description" content="우주 공간에 익명으로 따뜻한 응원과 소망을 실어 둥둥 띄우는 실시간 무중력 메시지 보드 서비스입니다.">
-  <meta name="keywords" content="소망로켓, Wishing Rocket, 익명보드, 실시간응원, Supabase, Edge Function, Antigravity">
+  <meta name="keywords" content="소망로켓, Wishing Rocket, 익명보드, 실시간응원, Supabase, SQL Trigger, Antigravity">
   
   <!-- Google Fonts 로드 (Space Grotesk & Noto Sans KR) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -214,20 +214,11 @@
             class="w-full bg-white/5 border border-white/10 rounded-xl px-4.5 py-3 outline-none text-slate-100 placeholder:text-slate-600 text-sm focus:border-purple-400/50 transition duration-150"
           />
         </div>
-        <div class="space-y-1.5">
-          <label for="sbEdgeUrl" class="text-xs font-semibold text-slate-300">create-message Edge Function URL</label>
-          <input 
-            type="text" 
-            id="sbEdgeUrl" 
-            placeholder="https://your-project.supabase.co/functions/v1/create-message" 
-            class="w-full bg-white/5 border border-white/10 rounded-xl px-4.5 py-3 outline-none text-slate-100 placeholder:text-slate-600 text-sm focus:border-purple-400/50 transition duration-150"
-          />
-        </div>
         
         <div class="p-3.5 bg-purple-500/10 border border-purple-500/20 rounded-xl flex items-start space-x-2.5">
           <i data-lucide="info" class="w-5 h-5 text-purple-400 shrink-0 mt-0.5"></i>
           <p class="text-xs text-purple-300/90 leading-relaxed font-medium">
-            현재 Supabase 서버 연결 정보가 설정되어 있지 않아 <strong>로컬 데모 모드</strong>로 자동 실행되었습니다. 브라우저 저장소(LocalStorage)에 메시지가 저장되어 Supabase 연결 없이도 즉시 체험해 보실 수 있습니다.
+            현재 Supabase 서버 연결 정보가 설정되어 있지 않아 <strong>로컬 데모 모드</strong>로 작동 중입니다. URL과 Anon Key만 입력하여 저장하시면 즉시 실시간 서버 연동 모드로 전환됩니다. (CLI 백엔드 배포는 필요 없습니다!)
           </p>
         </div>
       </div>
@@ -256,8 +247,7 @@
       supabaseClient: null,
       config: {
         supabaseUrl: "",
-        supabaseAnonKey: "",
-        edgeFunctionUrl: ""
+        supabaseAnonKey: ""
       },
       activeCard: null,
       isDragging: false,
@@ -305,7 +295,6 @@
           state.config = JSON.parse(saved);
           document.getElementById("sbUrl").value = state.config.supabaseUrl || "";
           document.getElementById("sbAnonKey").value = state.config.supabaseAnonKey || "";
-          document.getElementById("sbEdgeUrl").value = state.config.edgeFunctionUrl || "";
           
           if (state.config.supabaseUrl && state.config.supabaseAnonKey) {
             state.mode = "supabase";
@@ -320,17 +309,15 @@
     function saveConfig() {
       const sbUrl = document.getElementById("sbUrl").value.trim();
       const sbAnonKey = document.getElementById("sbAnonKey").value.trim();
-      const sbEdgeUrl = document.getElementById("sbEdgeUrl").value.trim();
 
-      if (!sbUrl || !sbAnonKey || !sbEdgeUrl) {
+      if (!sbUrl || !sbAnonKey) {
         alert("모든 설정 값을 입력해 주세요.");
         return false;
       }
 
       state.config = {
         supabaseUrl: sbUrl,
-        supabaseAnonKey: sbAnonKey,
-        edgeFunctionUrl: sbEdgeUrl
+        supabaseAnonKey: sbAnonKey
       };
 
       state.mode = "supabase";
@@ -598,23 +585,15 @@
       const colors = ["#FFB7B2", "#FFDAC1", "#B5EAD7", "#C7CEEA", "#D5AAFF"];
       const randomColor = colors[Math.floor(Math.random() * colors.length)];
 
-      if (state.mode === "supabase") {
-        // 1) Supabase Edge Function을 이용한 서버 저장 방식
+      if (state.mode === "supabase" && state.supabaseClient) {
+        // 1) SQL 트리거 방식을 사용하여 수파베이스 DB에 직접 데이터 삽입
         try {
-          const response = await fetch(state.config.edgeFunctionUrl, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              "apikey": state.config.supabaseAnonKey,
-              "Authorization": `Bearer ${state.config.supabaseAnonKey}`
-            },
-            body: JSON.stringify({ content, color: randomColor })
-          });
+          const { error } = await state.supabaseClient
+            .from("messages")
+            .insert([{ content, color: randomColor }]);
 
-          const result = await response.json();
-
-          if (!response.ok) {
-            throw new Error(result.error || "메시지 발송에 실패했습니다.");
+          if (error) {
+            throw new Error(error.message || "메시지 발송에 실패했습니다.");
           }
 
           messageInput.value = "";
@@ -725,8 +704,7 @@
           localStorage.removeItem("wishing_rocket_config");
           document.getElementById("sbUrl").value = "";
           document.getElementById("sbAnonKey").value = "";
-          document.getElementById("sbEdgeUrl").value = "";
-          state.config = { supabaseUrl: "", supabaseAnonKey: "", edgeFunctionUrl: "" };
+          state.config = { supabaseUrl: "", supabaseAnonKey: "" };
           state.mode = "local";
           updateModeBadge();
           toggleModal(false);
