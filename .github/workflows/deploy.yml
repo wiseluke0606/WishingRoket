@@ -8,6 +8,10 @@ on:
     branches:
       - main # main 브랜치에 변경사항이 푸시되면 실행
 
+# GITHUB_TOKEN에 대한 쓰기 권한을 명시적으로 선언하여 gh-pages 브랜치 생성 및 푸시 권한을 획득합니다.
+permissions:
+  contents: write
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
